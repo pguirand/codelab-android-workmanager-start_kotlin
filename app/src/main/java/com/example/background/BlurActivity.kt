@@ -16,6 +16,7 @@
 
 package com.example.background
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.activity.viewModels
@@ -34,6 +35,9 @@ class BlurActivity : AppCompatActivity() {
     private lateinit var binding: ActivityBlurBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
+        // Setup view output image file button
+
         super.onCreate(savedInstanceState)
         binding = ActivityBlurBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -41,12 +45,18 @@ class BlurActivity : AppCompatActivity() {
         binding.goButton.setOnClickListener { viewModel.applyBlur(blurLevel) }
         binding.cancelButton.setOnClickListener { viewModel.cancelWork() }
 
+        binding.seeFileButton.setOnClickListener {
+            viewModel.outputUri?.let { currentUri ->
+                val actionView = Intent(Intent.ACTION_VIEW, currentUri)
+                actionView.resolveActivity(packageManager)?.run {
+                    startActivity(actionView)
+                }
+            }
+        }
+
         viewModel.outputWorkInfos.observe(this, workInfosObserver())
     }
 
-    /**
-     * Shows and hides views for when the Activity is processing an image
-     */
     private fun showWorkInProgress() {
         with(binding) {
             progressBar.visibility = View.VISIBLE
@@ -56,9 +66,7 @@ class BlurActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Shows and hides views for when the Activity is done processing an image
-     */
+
     private fun showWorkFinished() {
         with(binding) {
             progressBar.visibility = View.GONE
@@ -79,24 +87,26 @@ class BlurActivity : AppCompatActivity() {
     private fun workInfosObserver(): Observer<List<WorkInfo>> {
         return Observer { listOfWorkInfo ->
 
-            // Note that these next few lines grab a single WorkInfo if it exists
-            // This code could be in a Transformation in the ViewModel; they are included here
-            // so that the entire process of displaying a WorkInfo is in one location.
-
-            // If there are no matching work info, do nothing
             if (listOfWorkInfo.isNullOrEmpty()) {
                 return@Observer
             }
 
-            // We only care about the one output status.
-            // Every continuation has only one worker tagged TAG_OUTPUT
             val workInfo = listOfWorkInfo[0]
 
             if (workInfo.state.isFinished) {
                 showWorkFinished()
+
+                val outputImageUri = workInfo.outputData.getString(KEY_IMAGE_URI)
+
+                // If there is an output file show "See File" button
+                if (!outputImageUri.isNullOrEmpty()) {
+                    viewModel.setOutputUri(outputImageUri)
+                    binding.seeFileButton.visibility = View.VISIBLE
+                }
             } else {
                 showWorkInProgress()
             }
         }
     }
+
 }
